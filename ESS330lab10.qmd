@@ -1,0 +1,10 @@
+---
+title: "Lab 10: Distances and the Border Zone"
+subtitle: 'ESS 330'
+author:
+  - name: Sarah Culhane
+    email: sculhane@colostate.edu
+format: html
+execute: 
+  echo: true
+---
