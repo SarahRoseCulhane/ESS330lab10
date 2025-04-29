@@ -31,20 +31,10 @@ First, I loaded the necessary libraries.
 1.1
 
 ```{r}
-# Set up the Equidistant Conic projection
+# Define Projection
 eqdc <- '+proj=eqdc +lat_0=40 +lon_0=-96 +lat_1=20 +lat_2=60 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs'
 
-# Download CONUS states
-conus_states <- aoi_get(state = "conus")
 
-# Project to eqdc
-conus_states_proj <- st_transform(conus_states, crs = eqdc)
-
-# Plot
-ggplot() +
-  geom_sf(data = conus_states_proj) +
-  coord_sf(datum = st_crs(conus_states_proj)) +
-  theme_linedraw()
 ```
 
 First, I downloaded a projection that preserves distance at the scale of CONUS
@@ -52,12 +42,22 @@ First, I downloaded a projection that preserves distance at the scale of CONUS
 1.2
 
 ```{r}
-remotes::install_github("mikejohnson51/AOI")
-# Download countries
-countries <- aoi_get(country = c("USA", "CA", "MX"))
+# Install AOI package if needed
+# remotes::install_github("mikejohnson51/AOI")
 
-# Project to eqdc
-countries_proj <- st_transform(countries, crs = eqdc)
+library(AOI)
+library(sf)
+library(ggplot2)
+
+# Get USA states
+states <- aoi_get(state = 'conus')
+
+# Project to Equidistant Conic
+states <- st_transform(states, crs = eqdc)
+
+# Check
+print(states)
+
 ```
 
 Then, I installed the correct github AOI package to get USA state borders and used st_transform reproject the data to the correct coordinate system suitable for distance measurements at the national scale
@@ -65,24 +65,15 @@ Then, I installed the correct github AOI package to get USA state borders and us
 1.3
 
 ```{r}
-# Download the USA cities CSV manually and save in "data" folder.
-# Example assumes you saved it as "data/uscities.csv"
+# Get USA states
+states <- aoi_get(state = 'conus')
 
-# Make it spatial
-cities_sf <- st_as_sf(cities, coords = c("lng", "lat"), crs = 4326)  # raw lat/lon
+# Project to Equidistant Conic
+states <- st_transform(states, crs = eqdc)
 
-# Project to eqdc
-cities_sf_proj <- st_transform(cities_sf, crs = eqdc)
+# Check
+print(states)
 
-# Filter to cities in CONUS states (if needed, depending on your dataset)
-cities_sf_proj <- cities_sf_proj %>% 
-  filter(state_id %in% unique(conus_states$state))
-
-# Plot
-ggplot() +
-  geom_sf(data = cities_sf_proj, size = 0.5) +
-  coord_sf(datum = st_crs(cities_sf_proj)) +
-  theme_linedraw()
 ```
 
 Then, I made sure the data was in the eqdc projection
@@ -91,6 +82,33 @@ Then, I made sure the data was in the eqdc projection
 
 ```{r}
 
+library(readr)
+library(dplyr)
+
+# Read cities data
+cities <- read_csv("data/uscities.csv")
+
+# View structure
+glimpse(cities)
+
+# Create spatial object
+cities_sf <- st_as_sf(cities, coords = c("lng", "lat"), crs = 4326)  # Lat/Lon CRS
+
+# Project to eqdc
+cities_sf_proj <- st_transform(cities_sf, crs = eqdc)
+
+# OPTIONAL: filter cities to only CONUS states
+conus_states <- unique(states$state)
+
+cities_sf_proj <- cities_sf_proj %>%
+  filter(state_id %in% conus_states)
+
+# Quick plot
+ggplot() +
+  geom_sf(data = states_proj, fill = NA) +
+  geom_sf(data = cities_sf_proj, color = "red", size = 0.5) +
+  coord_sf(datum = st_crs(cities_sf_proj)) +
+  theme_linedraw()
 
 ```
 
@@ -100,5 +118,15 @@ Then, I converted the "uscities" dataframe to a spatial object..
 
 2.1 - distance to USA border (km)
 
-```{}
+```{r}
+usa_border = states |> 
+  st_union() |>        # Union to make one shape (resolve internal boundaries)
+  st_cast("MULTILINESTRING")   # Cast to lines (border only)
+cities = mutate(cities, 
+                dist_to_usa_border = drop_units(set_units(st_distance(cities, usa_border), "km")))
+cities |> 
+  select(city, state, dist_to_usa_border) |> 
+  arrange(desc(dist_to_usa_border)) |> 
+  slice(1:5) |> 
+  flextable::flextable()
 ```
