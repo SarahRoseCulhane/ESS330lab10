@@ -38,9 +38,9 @@ eqdc <- '+proj=eqdc +lat_0=40 +lon_0=-96 +lat_1=20 +lat_2=60 +x_0=0 +y_0=0 +datu
 
 ```
 
-First, I downloaded a projection that preserves distance at the scale of CONUS
+First, I downloaded a projection that preserves distance at the scale of CONUS.
 
-1.2
+1.2 - Get USA state boundaries
 
 ```{r}
 
@@ -49,9 +49,9 @@ states <- aoi_get(state = 'conus') %>%
 
 ```
 
-Then, I installed the correct github AOI package to get USA state borders and used st_transform reproject the data to the correct coordinate system suitable for distance measurements at the national scale
+Then, I installed the correct github AOI package to get USA state borders and used st_transform reproject the data to the correct coordinate system (eqdc)
 
-1.3
+1.3 - Get country boundaries for Mexico, the U.S., and Canada
 
 ```{r}
 
@@ -60,38 +60,37 @@ countries <- aoi_get(country = c("MX", "CA", "USA")) %>%
 
 ```
 
-Then, I made sure the data was in the eqdc projection
+Then, I used aoi_get() to access country boundaries, making sure the data is in the correct projected coordinate system (eqdc)
 
-1.4
+1.4 - Get city locations from the CSV file
 
 ```{r}
 
-library(readr)
+library(readr) 
 library(dplyr)
+# load libraries
 
-
-cities_df <- read_csv("data/uscities.csv")
+cities_df <- read_csv("data/uscities.csv") #read data into working session
 cities <- st_as_sf(cities_df,
                    coords = c("lng", "lat"),
-                   crs = 4326) %>%    # original is WGS84 (EPSG:4326)
+                   crs = 4326) %>%   
   st_transform(crs = eqdc)
-# If needed: check the 'state_id' or 'state_name' columns to filter
 states_list <- unique(states$state_abbr)
-cities <- cities %>% filter(state_id %in% states_list)
+cities <- cities %>% filter(state_id %in% states_list) #filter cities outside of the U.S., Canada, or Mexico
 
 
 ```
 
-Then, I converted the "uscities" dataframe to a spatial object..
+Then, I converted the "uscities" dataframe to a spatial object. and removed the cities in states that I do not want using the filter() function
 
 # Question 2
 
-2.1 - distance to USA border (km)
+2.1 - distance to USA border (coastline or national) (km)
 
 ```{r}
 usa_border <- states %>%
   st_union() %>%
-  st_cast("MULTILINESTRING")
+  st_cast("MULTILINESTRING") # convert the state boundaries to a MULTILINESTRING geometry using the state object
 
 cities$dist_to_border_km <- as.numeric(st_distance(cities, usa_border)) / 1000
 
@@ -104,12 +103,14 @@ flextable(top5_border)
 
 ```
 
+Using the code above, i produced a table documenting the five cities farthest from the USA border.
+
 2.2
 
 ```{r}
 state_borders <- states %>%
   st_combine() %>%
-  st_cast("MULTILINESTRING")
+  st_cast("MULTILINESTRING") # convert the USA state boundaries to a MULTILINESTRING geometry
 
 cities$dist_to_state_km <- as.numeric(st_distance(cities, state_borders)) / 1000
 
@@ -118,10 +119,12 @@ top5_state <- cities %>%
   select(city, state_id, dist_to_state_km) %>%
   slice_head(n = 5)
 
-flextable(top5_state)
+flextable(top5_state) 
 
 
 ```
+
+I used the code above to document the five cities farthest from a state border.
 
 2.3
 
@@ -141,6 +144,8 @@ flextable(top5_mexico)
 
 ```
 
+I used the code above to produce a table documenting the five cities farthest from the Mexico border.
+
 2.4
 
 ```{r}
@@ -158,15 +163,18 @@ top5_canada <- cities %>%
 flextable(top5_canada)
 ```
 
+I used the code above to produce a table documenting the top five cities farthest away from the Canada border.
+
 # Question 3
 
 ```{r}
 library(ggrepel)
 library(gghighlight)
 library(viridis)
+# load neccessary libraries 
 ```
 
-3.1
+3.1 Data
 
 ```{r}
 # Top 10 cities by population
@@ -174,20 +182,22 @@ top10_cities <- cities %>%
   arrange(desc(population)) %>%
   slice_head(n = 10)
 
-# Plot
+# create a map
 ggplot() +
-  geom_sf(data = countries, fill = "gray95", color = "black", size = 0.5, lty = 2) +  # 3 countries
-  geom_sf(data = states, fill = NA, color = "black", size = 0.3) +  # states
-  geom_sf(data = top10_cities, color = "red", size = 2) +  # top 10 cities
+  geom_sf(data = countries, fill = "gray95", color = "black", size = 0.5, lty = 2) + 
+  geom_sf(data = states, fill = NA, color = "black", size = 0.3) +  
+  geom_sf(data = top10_cities, color = "red", size = 2) +  
   ggrepel::geom_label_repel(data = top10_cities, 
                             aes(label = city, geometry = geometry), 
                             stat = "sf_coordinates",
                             min.segment.length = 0,
-                             max.overlaps = 20) +  # smart labels
+                             max.overlaps = 20) +  
   theme_minimal() +
-  labs(title = "North America with Top 10 USA Cities")
+  labs(title = "Top 10 USA Cities by population")
 
 ```
+
+I used the code above to create a map of the 10 largest USA cities (by population) on a single map.
 
 3.2
 
@@ -200,7 +210,7 @@ top5_border_cities <- cities %>%
 ggplot() +
   geom_sf(data = states, fill = NA, color = "black", size = 0.3) +
   geom_sf(data = cities, aes(color = dist_to_border_km), size = 0.5) +
-  scale_color_viridis_c(name = "Distance to Border (km)", option = "plasma") +
+  scale_color_viridis(name = "Distance to Border (km)", option = "viridis") +
   geom_sf(data = top5_border_cities, color = "red", size = 2) +
   ggrepel::geom_label_repel(data = top5_border_cities, 
                             aes(label = city, geometry = geometry), 
@@ -211,7 +221,9 @@ ggplot() +
 
 ```
 
-3.3
+I used the code above to create map that colors USA cities by their distance from the national border and labels the 5 cities that are farthest from the border.
+
+3.3 - City Distance from Nearest State
 
 ```{r}
 # 5 farthest from state border
@@ -222,7 +234,7 @@ top5_state_cities <- cities %>%
 ggplot() +
   geom_sf(data = states, fill = NA, color = "black", size = 0.3) +
   geom_sf(data = cities, aes(color = dist_to_state_km), size = 0.5) +
-  scale_color_viridis_c(name = "Distance to State Border (km)", option = "turbo") +
+  scale_color_viridis(name = "Distance to State Border (km)", option = "viridis") +
   geom_sf(data = top5_state_cities, color = "blue", size = 2) +
   ggrepel::geom_label_repel(data = top5_state_cities, 
                             aes(label = city, geometry = geometry), 
@@ -233,7 +245,9 @@ ggplot() +
 
 ```
 
-3.4
+I used the code above to create a map that colors USA cities by their distance from the nearest state border and labeled the 5 cities that re farthest away from any border.
+
+3.4 Equidistance boundary from Mexico and Canada
 
 ```{r}
 cities <- cities %>%
@@ -263,15 +277,20 @@ ggplot() +
 
 ```
 
+I used the code above to identify the cities that are equal distrance from the Canadian AND Mexican border (+/- 100 km).
+
 # Question 4
 
-4.1
+4.1 Quantifying Border Zone
+
+```{r}
+total_population <- sum(cities$population, na.rm = TRUE)
+```
 
 ```{r}
 border_zone_cities <- cities %>% 
   filter(dist_to_border_km <= 160)
 border_zone_population <- sum(border_zone_cities$population, na.rm = TRUE)
-total_population <- sum(cities$population, na.rm = TRUE)
 percent_in_zone <- (border_zone_population / total_population) * 100
 library(tibble)
 
@@ -279,13 +298,11 @@ border_zone_summary <- tibble(
   Metric = c(
     "Number of Cities within 100 miles",
     "Population within 100 miles",
-    "Total Population",
     "Percent of Total Population in Zone"
   ),
   Value = c(
     nrow(border_zone_cities),
     border_zone_population,
-    total_population,
     round(percent_in_zone, 2)
   )
 )
@@ -294,7 +311,9 @@ border_zone_summary
 
 ```
 
-4.2
+I used the code above to create a table reporting how many cities are in the 100 mile zone, how many people live in a city within 100 miles of the border, and what percentage of the total population is in this zone. However, I could not find the ACLU estimates using the article provided.
+
+4.2 - Mapping Border Zonee
 
 ```{r}
 ggplot() +
@@ -314,6 +333,8 @@ ggplot() +
        color = "Distance to Border (km)")
 
 ```
+
+I used the code above to make a map highlighting the cities within the 100 mile zone and label the top 10 most populous cities
 
 4.3
 
@@ -340,3 +361,5 @@ ggplot() +
        color = "Distance to Border (km)")
 
 ```
+
+I used the code above to label the most populous city in each state within the danger zone.
