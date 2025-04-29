@@ -22,6 +22,7 @@ library(AOI)
 library(gghighlight)
 library(ggrepel)
 library(knitr)
+library(flextable)
 ```
 
 First, I loaded the necessary libraries.
